@@ -271,6 +271,8 @@ h1 {
 .risk-card,
 .weather-card,
 .location-search-panel,
+.route-map-card,
+.route-map-panel,
 .checklist-panel,
 .wallet-panel,
 .insight-panel,
@@ -331,7 +333,8 @@ h1 {
 .decision-strip p,
 .weather-card p,
 .weather-key-panel p,
-.location-search-panel p {
+.location-search-panel p,
+.route-map-panel p {
   color: var(--muted);
   line-height: 1.7;
 }
@@ -357,6 +360,240 @@ h1 {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.route-map-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+}
+
+.route-map-card {
+  min-height: 620px;
+  overflow: hidden;
+  position: relative;
+}
+
+.route-map-canvas {
+  height: 100%;
+  min-height: 620px;
+  width: 100%;
+}
+
+.route-map-overlay {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(255, 250, 239, 0.95), rgba(255, 250, 239, 0.84)),
+    rgba(18, 48, 52, 0.08);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  inset: 0;
+  justify-content: center;
+  padding: 28px;
+  position: absolute;
+  text-align: center;
+  z-index: 2;
+}
+
+.route-map-overlay svg {
+  color: var(--red);
+  margin-bottom: 10px;
+}
+
+.route-map-overlay h3 {
+  font-size: 1.35rem;
+  margin-bottom: 8px;
+}
+
+.route-map-overlay p {
+  color: var(--muted);
+  line-height: 1.7;
+  max-width: 560px;
+}
+
+.route-map-overlay code {
+  background: rgba(18, 48, 52, 0.1);
+  border-radius: 6px;
+  color: var(--red);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  margin: 0 4px;
+  padding: 2px 5px;
+}
+
+.route-map-panel {
+  padding: 22px;
+}
+
+.route-map-panel__head {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+}
+
+.route-map-panel__head svg {
+  color: var(--red);
+  flex: 0 0 auto;
+}
+
+.route-map-panel__head h3 {
+  margin-bottom: 4px;
+}
+
+.route-map-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.route-map-actions button {
+  background: rgba(39, 109, 145, 0.12);
+  border: 0;
+  border-radius: 999px;
+  color: #245a73;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 8px 11px;
+}
+
+.route-map-actions button.active {
+  background: #123034;
+  color: #f4c866;
+}
+
+.route-day-detail {
+  background: linear-gradient(135deg, rgba(39, 109, 145, 0.1), rgba(216, 166, 66, 0.14));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.route-day-detail > span {
+  color: var(--red);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 900;
+  margin-bottom: 5px;
+}
+
+.route-day-detail h3 {
+  margin-bottom: 12px;
+}
+
+.route-day-detail dl {
+  gap: 8px;
+}
+
+.route-day-detail p {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 12px 0 0;
+  padding-top: 10px;
+}
+
+.route-point-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.route-point-chain span {
+  background: rgba(159, 61, 56, 0.1);
+  border-radius: 999px;
+  color: var(--red);
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 6px 9px;
+}
+
+.route-node-list {
+  counter-reset: route-node;
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.route-node-list li {
+  align-items: flex-start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 54px 1fr;
+}
+
+.route-node-list li > span {
+  background: #123034;
+  border-radius: 8px;
+  color: #f4c866;
+  font-size: 0.8rem;
+  font-weight: 900;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.route-node-list strong {
+  color: var(--ink);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.route-node-list p {
+  margin-bottom: 4px;
+}
+
+.route-node-list em {
+  color: var(--red);
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.amap-node-label {
+  background: rgba(18, 48, 52, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  color: #fffaf0;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+.amap-node-label.active {
+  background: rgba(39, 109, 145, 0.95);
+  border-color: rgba(244, 200, 102, 0.95);
+}
+
+.amap-info {
+  color: #123034;
+  max-width: 240px;
+  padding: 4px 2px;
+}
+
+.amap-info strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.amap-info p {
+  color: #607175;
+  line-height: 1.55;
+  margin-bottom: 6px;
+}
+
+.amap-info span {
+  color: #9f3d38;
+  font-weight: 900;
 }
 
 .day-card {
@@ -995,6 +1232,10 @@ footer div {
   .risk-layout {
     grid-template-columns: 1fr;
   }
+
+  .route-map-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1077,6 +1318,11 @@ footer div {
 
   .weather-card {
     min-height: auto;
+  }
+
+  .route-map-card,
+  .route-map-canvas {
+    min-height: 430px;
   }
 
   .location-search-panel form,

@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import AMapLoader from "@amap/amap-jsapi-loader";
 import {
   AlertTriangle,
   ArrowRight,
@@ -18,6 +19,7 @@ import {
   Map,
   MapPinned,
   Mountain,
+  Navigation,
   Plane,
   ShieldCheck,
   Sparkles,
@@ -44,6 +46,7 @@ const navItems = [
   ["总览", "hero"],
   ["决策", "decision"],
   ["行程", "timeline"],
+  ["地图", "route-map"],
   ["天气", "weather"],
   ["备选", "backup"],
   ["交通", "transport"],
@@ -334,6 +337,174 @@ const weatherLocations = [
   }
 ];
 
+const routeNodes = [
+  {
+    day: "D1",
+    name: "成都",
+    summary: "杭州飞成都入，首晚低海拔缓冲。",
+    stay: "成都",
+    altitude: "约 500m",
+    position: [104.0665, 30.5723]
+  },
+  {
+    day: "D2",
+    name: "新都桥",
+    summary: "成都经康定进入摄影天堂，只做适应。",
+    stay: "新都桥",
+    altitude: "约 3300m",
+    position: [101.495, 30.033]
+  },
+  {
+    day: "D3-D4",
+    name: "香格里拉镇",
+    summary: "亚丁前夜住宿点，睡低一点给核心日留体力。",
+    stay: "香格里拉镇",
+    altitude: "约 2900m",
+    position: [100.344, 28.559]
+  },
+  {
+    day: "D4",
+    name: "稻城亚丁景区",
+    summary: "冲古寺、珍珠海、洛绒牛场为全员保底。",
+    stay: "景区往返",
+    altitude: "3900m+",
+    position: [100.297, 28.445]
+  },
+  {
+    day: "D5",
+    name: "稻城",
+    summary: "白塔和傍河轻旅拍，作为恢复和返程前夜。",
+    stay: "稻城",
+    altitude: "约 3700m",
+    position: [100.298, 29.037]
+  },
+  {
+    day: "D6",
+    name: "稻城亚丁机场",
+    summary: "返程优先从亚丁机场飞出，减少大回撤。",
+    stay: "返程",
+    altitude: "约 4411m",
+    position: [100.053, 29.323]
+  }
+];
+
+const dailyRouteSegments = [
+  {
+    day: "D1",
+    title: "杭州 → 成都",
+    transport: "飞机 + 市区轻活动",
+    duration: "飞行约 3-3.5h；机场到市区 0.5-1h",
+    altitude: "约 10m → 500m",
+    focus: "低海拔缓冲，不赶景点。",
+    note: "落地后只安排轻松活动，晚上早点休息。",
+    points: [
+      { name: "杭州萧山机场", position: [120.432, 30.236] },
+      { name: "成都", position: [104.0665, 30.5723] }
+    ]
+  },
+  {
+    day: "D2",
+    title: "成都 → 新都桥",
+    transport: "包车公路进入川西",
+    duration: "总车程约 6.5-8h",
+    altitude: "500m → 3300m，途中最高约 4200m+",
+    focus: "先适应高海拔，不冲高位日落点。",
+    note: "经雅安、泸定、康定，折多山只短暂停留。",
+    points: [
+      { name: "成都", position: [104.0665, 30.5723] },
+      { name: "雅安", position: [103.001, 29.987] },
+      { name: "泸定", position: [102.234, 29.914] },
+      { name: "康定", position: [101.964, 30.05] },
+      { name: "新都桥", position: [101.495, 30.033] }
+    ]
+  },
+  {
+    day: "D3",
+    title: "新都桥 → 香格里拉镇",
+    transport: "包车穿越理塘方向",
+    duration: "总车程约 7-8.5h",
+    altitude: "3300m → 2900m，途中经 4600m 级别垭口",
+    focus: "过高点、睡低点，为亚丁日储备体力。",
+    note: "重点拍天路十八弯、理塘草原感、姊妹湖。",
+    points: [
+      { name: "新都桥", position: [101.495, 30.033] },
+      { name: "雅江", position: [101.015, 30.031] },
+      { name: "理塘", position: [100.269, 29.996] },
+      { name: "姊妹湖", position: [99.65, 30.03] },
+      { name: "香格里拉镇", position: [100.344, 28.559] }
+    ]
+  },
+  {
+    day: "D4",
+    title: "香格里拉镇 → 亚丁景区 → 香格里拉镇",
+    transport: "短车程 + 景区观光车 + 步行",
+    duration: "酒店到景区 10-20min；观光车约 1h；步行 1-3h",
+    altitude: "2900m → 3900m/4100m，长线更高",
+    focus: "冲古寺、珍珠海、洛绒牛场为核心。",
+    note: "有人头痛、胸闷、呕吐，立刻缩线路。",
+    points: [
+      { name: "香格里拉镇", position: [100.344, 28.559] },
+      { name: "亚丁游客中心", position: [100.331, 28.54] },
+      { name: "稻城亚丁景区", position: [100.297, 28.445] },
+      { name: "香格里拉镇", position: [100.344, 28.559] }
+    ]
+  },
+  {
+    day: "D5",
+    title: "香格里拉镇 → 稻城",
+    transport: "短途回撤 + 轻旅拍",
+    duration: "1-1.5h 车程 + 轻机位停靠",
+    altitude: "2900m → 3700m",
+    focus: "恢复日，拍稻城白塔和傍河。",
+    note: "如果前一晚高反明显，就减少所有高位停靠。",
+    points: [
+      { name: "香格里拉镇", position: [100.344, 28.559] },
+      { name: "稻城白塔", position: [100.285, 29.036] },
+      { name: "稻城", position: [100.298, 29.037] }
+    ]
+  },
+  {
+    day: "D6",
+    title: "稻城 → 亚丁机场 → 成都 → 杭州",
+    transport: "包车接驳 + 联程航班",
+    duration: "稻城到机场约 1-1.5h；飞行 + 中转",
+    altitude: "3700m → 机场高海拔 → 回低海拔",
+    focus: "只赶航班，不加硬景点。",
+    note: "联程至少预留 3.5 小时以上缓冲。",
+    points: [
+      { name: "稻城", position: [100.298, 29.037] },
+      { name: "稻城亚丁机场", position: [100.053, 29.323] },
+      { name: "成都", position: [104.0665, 30.5723] },
+      { name: "杭州", position: [120.155, 30.274] }
+    ]
+  }
+];
+
+function getAmapConfig() {
+  return {
+    key: import.meta.env.VITE_AMAP_KEY,
+    securityCode: import.meta.env.VITE_AMAP_SECURITY_CODE
+  };
+}
+
+function hasAmapConfig() {
+  const { key, securityCode } = getAmapConfig();
+  return Boolean(key && key !== "your_amap_key" && securityCode && securityCode !== "your_amap_security_code");
+}
+
+async function loadAmap() {
+  const { key, securityCode } = getAmapConfig();
+  window._AMapSecurityConfig = {
+    securityJsCode: securityCode
+  };
+
+  return AMapLoader.load({
+    key,
+    version: "2.0",
+    plugins: []
+  });
+}
+
 const SENIVERSE_BASE_URL = "https://api.seniverse.com/v3/weather";
 const SENIVERSE_LOCATION_URL = "https://api.seniverse.com/v3/location/search.json";
 
@@ -587,6 +758,275 @@ function TimelineSlide() {
             </dl>
           </article>
         ))}
+      </div>
+    </Section>
+  );
+}
+
+function RouteMapSlide() {
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const AMapRef = useRef(null);
+  const baseRouteOverlaysRef = useRef([]);
+  const activeRouteOverlaysRef = useRef([]);
+  const [mapState, setMapState] = useState({
+    status: hasAmapConfig() ? "loading" : "missing",
+    message: ""
+  });
+  const [activeRouteDay, setActiveRouteDay] = useState("all");
+
+  const activeRoute =
+    activeRouteDay === "all"
+      ? null
+      : dailyRouteSegments.find((route) => route.day === activeRouteDay);
+
+  function clearActiveRouteOverlays() {
+    const map = mapInstanceRef.current;
+    if (map && activeRouteOverlaysRef.current.length) {
+      map.remove(activeRouteOverlaysRef.current);
+    }
+    activeRouteOverlaysRef.current = [];
+  }
+
+  function focusRoute(route) {
+    const map = mapInstanceRef.current;
+    const AMap = AMapRef.current;
+
+    setActiveRouteDay(route ? route.day : "all");
+    clearActiveRouteOverlays();
+
+    if (!map || !AMap) return;
+
+    if (!route) {
+      map.setFitView(baseRouteOverlaysRef.current, false, [80, 80, 80, 80]);
+      return;
+    }
+
+    const path = route.points.map((point) => point.position);
+    const line = new AMap.Polyline({
+      path,
+      strokeColor: "#276d91",
+      strokeOpacity: 0.95,
+      strokeWeight: 8,
+      lineJoin: "round",
+      showDir: true,
+      zIndex: 80
+    });
+
+    const markers = route.points.map((point, index) => {
+      return new AMap.Marker({
+        position: point.position,
+        title: point.name,
+        label: {
+          direction: "top",
+          offset: new AMap.Pixel(0, -8),
+          content: `<div class="amap-node-label active">${index + 1}. ${point.name}</div>`
+        },
+        zIndex: 90
+      });
+    });
+
+    const overlays = [line, ...markers];
+    activeRouteOverlaysRef.current = overlays;
+    map.add(overlays);
+    map.setFitView(overlays, false, [90, 90, 90, 90]);
+  }
+
+  useEffect(() => {
+    if (!hasAmapConfig()) {
+      setMapState({ status: "missing", message: "" });
+      return undefined;
+    }
+
+    let isActive = true;
+    setMapState({ status: "loading", message: "" });
+
+    loadAmap()
+      .then((AMap) => {
+        if (!isActive || !mapContainerRef.current) return;
+        AMapRef.current = AMap;
+
+        const map = new AMap.Map(mapContainerRef.current, {
+          zoom: 7,
+          center: [101.8, 29.55],
+          viewMode: "2D",
+          mapStyle: "amap://styles/normal"
+        });
+
+        const path = routeNodes.map((node) => node.position);
+        const polyline = new AMap.Polyline({
+          path,
+          strokeColor: "#9f3d38",
+          strokeOpacity: 0.9,
+          strokeWeight: 6,
+          lineJoin: "round",
+          showDir: true
+        });
+
+        map.add(polyline);
+
+        const markers = routeNodes.map((node, index) => {
+          const marker = new AMap.Marker({
+            position: node.position,
+            title: node.name,
+            label: {
+              direction: "top",
+              offset: new AMap.Pixel(0, -8),
+              content: `<div class="amap-node-label">${index + 1}. ${node.name}</div>`
+            }
+          });
+
+          marker.on("click", () => {
+            const infoWindow = new AMap.InfoWindow({
+              offset: new AMap.Pixel(0, -28),
+              content: `<div class="amap-info"><strong>${node.day} · ${node.name}</strong><p>${node.summary}</p><span>${node.altitude}</span></div>`
+            });
+            infoWindow.open(map, node.position);
+          });
+
+          return marker;
+        });
+
+        map.add(markers);
+        baseRouteOverlaysRef.current = [polyline, ...markers];
+        map.setFitView([polyline, ...markers], false, [80, 80, 80, 80]);
+        mapInstanceRef.current = map;
+
+        setMapState({ status: "success", message: "" });
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        setMapState({
+          status: "error",
+          message: error instanceof Error ? error.message : "高德地图加载失败。"
+        });
+      });
+
+    return () => {
+      isActive = false;
+      if (mapInstanceRef.current) {
+        clearActiveRouteOverlays();
+        mapInstanceRef.current.destroy();
+        mapInstanceRef.current = null;
+      }
+      AMapRef.current = null;
+      baseRouteOverlaysRef.current = [];
+    };
+  }, []);
+
+  return (
+    <Section
+      id="route-map"
+      label="路线地图"
+      title="把 6 天主线放到地图上看"
+      image={imageUrls.route}
+    >
+      <div className="route-map-layout">
+        <div className="route-map-card">
+          <div ref={mapContainerRef} className="route-map-canvas" />
+          {mapState.status !== "success" && (
+            <div className={`route-map-overlay ${mapState.status}`}>
+              {mapState.status === "missing" && (
+                <>
+                  <MapPinned size={28} />
+                  <h3>请填写高德地图 Key</h3>
+                  <p>
+                    在 <code>.env</code> 中配置 <code>VITE_AMAP_KEY</code> 和
+                    <code>VITE_AMAP_SECURITY_CODE</code> 后重启 Vite。前端接入会在浏览器中暴露 key，适合个人展示页。
+                  </p>
+                </>
+              )}
+              {mapState.status === "loading" && (
+                <>
+                  <Navigation size={28} />
+                  <h3>正在加载高德地图...</h3>
+                  <p>加载完成后会显示成都到亚丁机场的主线节点。</p>
+                </>
+              )}
+              {mapState.status === "error" && (
+                <>
+                  <AlertTriangle size={28} />
+                  <h3>地图加载失败</h3>
+                  <p>{mapState.message}</p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <aside className="route-map-panel">
+          <div className="route-map-panel__head">
+            <MapPinned size={24} />
+            <div>
+              <h3>主线节点</h3>
+              <p>节点连线用于展示空间关系，不代表精确驾车导航线路。</p>
+            </div>
+          </div>
+
+          <div className="route-map-actions">
+            <button
+              type="button"
+              className={activeRouteDay === "all" ? "active" : ""}
+              onClick={() => focusRoute(null)}
+            >
+              总览
+            </button>
+            {dailyRouteSegments.map((route) => (
+              <button
+                type="button"
+                key={route.day}
+                className={activeRouteDay === route.day ? "active" : ""}
+                onClick={() => focusRoute(route)}
+              >
+                {route.day}
+              </button>
+            ))}
+          </div>
+
+          {activeRoute && (
+            <article className="route-day-detail">
+              <span>{activeRoute.day} 详细路线</span>
+              <h3>{activeRoute.title}</h3>
+              <dl>
+                <div>
+                  <dt>交通方式</dt>
+                  <dd>{activeRoute.transport}</dd>
+                </div>
+                <div>
+                  <dt>时间</dt>
+                  <dd>{activeRoute.duration}</dd>
+                </div>
+                <div>
+                  <dt>海拔</dt>
+                  <dd>{activeRoute.altitude}</dd>
+                </div>
+                <div>
+                  <dt>重点</dt>
+                  <dd>{activeRoute.focus}</dd>
+                </div>
+              </dl>
+              <p>{activeRoute.note}</p>
+              <div className="route-point-chain">
+                {activeRoute.points.map((point) => (
+                  <span key={`${activeRoute.day}-${point.name}`}>{point.name}</span>
+                ))}
+              </div>
+            </article>
+          )}
+
+          <ol className="route-node-list">
+            {routeNodes.map((node) => (
+              <li key={`${node.day}-${node.name}`}>
+                <span>{node.day}</span>
+                <div>
+                  <strong>{node.name}</strong>
+                  <p>{node.summary}</p>
+                  <em>{node.stay} · {node.altitude}</em>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </aside>
       </div>
     </Section>
   );
@@ -1176,6 +1616,7 @@ function App() {
         <HeroSlide />
         <DecisionSlide />
         <TimelineSlide />
+        <RouteMapSlide />
         <WeatherSlide />
         <BackupSlide />
         <TransportCompareSlide />
