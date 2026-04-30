@@ -480,6 +480,69 @@ const dailyRouteSegments = [
   }
 ];
 
+const dailyItineraryDetails = [
+  {
+    day: "D1",
+    rhythm: "落地集合、低海拔缓冲、轻松城市夜景。",
+    lodging: "成都经济型酒店，优先选交通方便、干净安全、次日出城顺路的位置。",
+    color: "暖橙、灰青、城市夜色",
+    outfit: "白、黑、牛仔蓝、奶油色，轻便即可。",
+    food: "早点吃川菜但别太辣，避免饮酒。",
+    photoSpots: ["成都城市街景", "宽窄巷子或春熙路二选一", "骑楼/巷子灯光"],
+    risk: "第一晚就是缓冲夜，不熬夜，不安排大强度 walk。"
+  },
+  {
+    day: "D2",
+    rhythm: "从成都进入川西，逐步爬升到新都桥。",
+    lodging: "新都桥住宿，优先选取暖稳定、停车方便、离主路不远的经济型酒店。",
+    color: "金色、绿色、木屋棕、雪山灰蓝",
+    outfit: "米白、酒红、焦糖、燕麦色；带防风外套。",
+    food: "康定午餐，新都桥晚餐喝热汤，少油少酒。",
+    photoSpots: ["沿途河谷", "折多山远眺", "新都桥公路边草甸", "木屋与村落光影"],
+    risk: "今天只做适应，不建议上来就去鱼子西或高位观景台。"
+  },
+  {
+    day: "D3",
+    rhythm: "长车程穿越理塘方向，过高点但睡低点。",
+    lodging: "香格里拉镇住宿，作为亚丁前夜，重点是睡眠质量和补给便利。",
+    color: "湖水蓝、岩石灰、天空深蓝",
+    outfit: "红、白、姜黄、克莱因蓝；早晚加保暖层。",
+    food: "理塘或沿线简餐，晚上早点休息，准备能量棒和热水。",
+    photoSpots: ["天路十八弯", "理塘草原路感", "姊妹湖观景点", "荒原公路镜头"],
+    risk: "这一天过高海拔垭口，停留拍照要短，不跑跳。"
+  },
+  {
+    day: "D4",
+    rhythm: "亚丁核心日，早进景区，短线/中线为团队统一目标。",
+    lodging: "继续住香格里拉镇，避免当天高海拔住宿压力。",
+    color: "蓝白、翡翠绿、雪山灰、草甸绿",
+    outfit: "白、奶油、浅灰、酒红、雾霾蓝；轻羽绒或厚抓绒随身。",
+    food: "景区内简餐 + 自带能量棒、巧克力、热水。",
+    photoSpots: ["冲古寺", "珍珠海倒影", "冲古草甸", "洛绒牛场草甸与雪山"],
+    risk: "全员保底线：冲古寺 + 珍珠海；状态好再加洛绒牛场。牛奶海/五色海只给状态最好的人自选。"
+  },
+  {
+    day: "D5",
+    rhythm: "轻松回撤到稻城，做恢复和补拍。",
+    lodging: "稻城县城住宿，方便次日去亚丁机场。",
+    color: "白金、草原绿、云层灰蓝",
+    outfit: "黑白、焦糖、奶茶色、低饱和蓝。",
+    food: "稻城县城吃牦牛汤锅或藏式简餐，避免过量辛辣。",
+    photoSpots: ["稻城白塔", "傍河轻旅拍", "道路延伸感", "河谷与草甸"],
+    risk: "如果有人前一晚反应明显，D5 不再折腾高位点，整天做恢复。"
+  },
+  {
+    day: "D6",
+    rhythm: "机场接驳和联程返程，不再安排硬景点。",
+    lodging: "无住宿，返程日。",
+    color: "冷灰、天青、荒原褐",
+    outfit: "以舒适保暖为先，方便机场和中转。",
+    food: "机场简餐，提前备水和小零食。",
+    photoSpots: ["沿途公路", "机场方向云层", "荒原路感镜头"],
+    risk: "亚丁方向航班受天气影响更敏感，至少预留 3.5 小时以上联程缓冲。"
+  }
+];
+
 function getAmapConfig() {
   return {
     key: import.meta.env.VITE_AMAP_KEY,
@@ -726,40 +789,116 @@ function TimelineSlide() {
     <Section
       id="timeline"
       label="主推荐行程"
-      title="D1-D6：低海拔缓冲，公路进亚丁，轻松回撤"
+      title="D1-D6：每天拆开看，节奏会更清楚"
       image={imageUrls.meadow}
     >
-      <div className="timeline">
+      <DetailedItineraryTabs />
+    </Section>
+  );
+}
+
+function DetailedItineraryTabs() {
+  const [activeDay, setActiveDay] = useState("D1");
+  const activeItinerary = itinerary.find((item) => item.day === activeDay) || itinerary[0];
+  const activeRoute =
+    dailyRouteSegments.find((item) => item.day === activeDay) || dailyRouteSegments[0];
+  const activeDetail =
+    dailyItineraryDetails.find((item) => item.day === activeDay) || dailyItineraryDetails[0];
+
+  return (
+    <div className="itinerary-tabs">
+      <div className="itinerary-tab-list" role="tablist" aria-label="每日详细行程">
         {itinerary.map((day) => (
-          <article className="day-card" key={day.day}>
-            <div className="day-card__top">
-              <strong>{day.day}</strong>
-              <span>{day.date}</span>
-            </div>
-            <h3>{day.route}</h3>
-            <div className="tag-row">
-              <span>{day.stay}</span>
-              <span>{day.altitude}</span>
-            </div>
-            <p>{day.highlights}</p>
-            <dl>
-              <div>
-                <dt>车程/交通</dt>
-                <dd>{day.drive}</dd>
-              </div>
-              <div>
-                <dt>拍摄窗口</dt>
-                <dd>{day.photo}</dd>
-              </div>
-              <div>
-                <dt>注意</dt>
-                <dd>{day.note}</dd>
-              </div>
-            </dl>
-          </article>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeDay === day.day}
+            className={activeDay === day.day ? "active" : ""}
+            key={day.day}
+            onClick={() => setActiveDay(day.day)}
+          >
+            <strong>{day.day}</strong>
+            <span>{day.date}</span>
+          </button>
         ))}
       </div>
-    </Section>
+
+      <article className="itinerary-detail-panel" role="tabpanel">
+        <div className="itinerary-detail-main">
+          <div className="itinerary-detail-kicker">
+            <span>{activeItinerary.day}</span>
+            <em>{activeItinerary.date}</em>
+          </div>
+          <h3>{activeItinerary.route}</h3>
+          <p className="itinerary-rhythm">{activeDetail.rhythm}</p>
+
+          <div className="itinerary-metrics">
+            <MetricCard label="住宿/返程" value={activeItinerary.stay} />
+            <MetricCard label="车程/交通" value={activeItinerary.drive} />
+            <MetricCard label="海拔变化" value={activeItinerary.altitude} />
+          </div>
+
+          <div className="itinerary-route-chain">
+            {activeRoute.points.map((point, index) => (
+              <span key={`${activeDay}-${point.name}-${index}`}>{point.name}</span>
+            ))}
+          </div>
+
+          <div className="itinerary-route-note">
+            <Navigation size={18} />
+            <p>
+              {activeRoute.transport} · {activeRoute.duration}。{activeRoute.focus}
+            </p>
+          </div>
+        </div>
+
+        <div className="itinerary-detail-side">
+          <InfoBlock title="拍摄安排" icon={Camera}>
+            <p>{activeItinerary.photo}</p>
+            <div className="mini-chip-row">
+              {activeDetail.photoSpots.map((spot) => (
+                <span key={spot}>{spot}</span>
+              ))}
+            </div>
+          </InfoBlock>
+
+          <InfoBlock title="穿搭与色彩" icon={Sparkles}>
+            <p>{activeDetail.color}</p>
+            <strong>{activeDetail.outfit}</strong>
+          </InfoBlock>
+
+          <InfoBlock title="餐饮与补给" icon={Luggage}>
+            <p>{activeDetail.food}</p>
+          </InfoBlock>
+
+          <InfoBlock title="风险提示" icon={AlertTriangle}>
+            <p>{activeDetail.risk}</p>
+            <strong>{activeItinerary.note}</strong>
+          </InfoBlock>
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function MetricCard({ label, value }) {
+  return (
+    <div className="itinerary-metric-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function InfoBlock({ title, icon: Icon, children }) {
+  return (
+    <section className="itinerary-info-block">
+      <div>
+        <Icon size={18} />
+        <h4>{title}</h4>
+      </div>
+      {children}
+    </section>
   );
 }
 
