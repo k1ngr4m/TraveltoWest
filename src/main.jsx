@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AlertTriangle,
@@ -8,7 +8,10 @@ import {
   Car,
   CheckCircle2,
   Clock3,
+  CloudSun,
   Compass,
+  Copy,
+  Droplets,
   HeartPulse,
   Landmark,
   Luggage,
@@ -18,7 +21,9 @@ import {
   Plane,
   ShieldCheck,
   Sparkles,
-  WalletCards
+  Thermometer,
+  WalletCards,
+  Wind
 } from "lucide-react";
 import "./styles.css";
 
@@ -39,6 +44,7 @@ const navItems = [
   ["总览", "hero"],
   ["决策", "decision"],
   ["行程", "timeline"],
+  ["天气", "weather"],
   ["备选", "backup"],
   ["交通", "transport"],
   ["预算", "budget"],
@@ -297,6 +303,158 @@ const checklist = [
   "全员健康状态、药品、氧气、保险和证件截图"
 ];
 
+const weatherLocations = [
+  {
+    label: "成都",
+    envKey: "VITE_WEATHER_LOCATION_CHENGDU",
+    locations: ["chengdu"],
+    stay: "D1 住宿地",
+    role: "低海拔缓冲"
+  },
+  {
+    label: "新都桥",
+    envKey: "VITE_WEATHER_LOCATION_XINDUQIAO",
+    locations: ["xinduqiao", "kangding"],
+    stay: "D2 住宿地",
+    role: "高原适应"
+  },
+  {
+    label: "香格里拉镇",
+    envKey: "VITE_WEATHER_LOCATION_SHANGRILA_TOWN",
+    locations: ["xianggelilazhen", "daocheng", "ganzi", "kangding"],
+    stay: "D3-D4 住宿地",
+    role: "亚丁前夜"
+  },
+  {
+    label: "稻城",
+    envKey: "VITE_WEATHER_LOCATION_DAOCHENG",
+    locations: ["daocheng", "ganzi", "kangding"],
+    stay: "D5 住宿地",
+    role: "返程前夜"
+  }
+];
+
+const SENIVERSE_BASE_URL = "https://api.seniverse.com/v3/weather";
+const SENIVERSE_LOCATION_URL = "https://api.seniverse.com/v3/location/search.json";
+
+function getWeatherApiKey() {
+  const key = import.meta.env.VITE_SENIVERSE_API_KEY;
+  return key && key !== "your_api_key" ? key : "";
+}
+
+async function fetchSeniverseWeather(endpoint, location, params = {}) {
+  const key = getWeatherApiKey();
+  if (!key) {
+    throw new Error("请先在 .env 中填写 VITE_SENIVERSE_API_KEY。");
+  }
+
+  const searchParams = new URLSearchParams({
+    key,
+    location,
+    language: "zh-Hans",
+    unit: "c",
+    ...params
+  });
+
+  const response = await fetch(`${SENIVERSE_BASE_URL}/${endpoint}.json?${searchParams}`);
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = payload?.status || payload?.message || `天气接口请求失败（${response.status}）`;
+    throw new Error(message);
+  }
+
+  const result = payload?.results?.[0];
+  if (!result) {
+    throw new Error("天气接口没有返回可用数据。");
+  }
+
+  return result;
+}
+
+async function searchSeniverseLocations(query, limit = 10, offset = 0) {
+  const key = getWeatherApiKey();
+  if (!key) {
+    throw new Error("请先在 .env 中填写 VITE_SENIVERSE_API_KEY。");
+  }
+
+  const searchParams = new URLSearchParams({
+    key,
+    q: query,
+    language: "zh-Hans",
+    limit: String(limit),
+    offset: String(offset)
+  });
+
+  const response = await fetch(`${SENIVERSE_LOCATION_URL}?${searchParams}`);
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = payload?.status || payload?.message || `城市搜索失败（${response.status}）`;
+    throw new Error(message);
+  }
+
+  return payload?.results || [];
+}
+
+function fetchWeatherNow(location) {
+  return fetchSeniverseWeather("now", location);
+}
+
+function fetchWeatherDaily(location, days = 5) {
+  return fetchSeniverseWeather("daily", location, {
+    start: "0",
+    days: String(days)
+  });
+}
+
+async function fetchWeatherBundle(location) {
+  const [nowResult, dailyResult] = await Promise.all([
+    fetchWeatherNow(location),
+    fetchWeatherDaily(location)
+  ]);
+
+  return {
+    now: nowResult.now,
+    daily: dailyResult.daily || [],
+    location: nowResult.location,
+    lastUpdate: nowResult.last_update || dailyResult.last_update,
+    queryLocation: location,
+    isFallback: false
+  };
+}
+
+function resolveWeatherLocations(item) {
+  const override = import.meta.env[item.envKey];
+  return [...new Set([override, ...item.locations].filter(Boolean))];
+}
+
+async function fetchWeatherBundleWithFallback(item) {
+  const candidates = resolveWeatherLocations(item);
+  const errors = [];
+
+  for (const location of candidates) {
+    try {
+      const weatherBundle = await fetchWeatherBundle(location);
+      return {
+        ...weatherBundle,
+        isFallback: location !== candidates[0]
+      };
+    } catch (error) {
+      errors.push(`${location}: ${getWeatherErrorMessage(error)}`);
+    }
+  }
+
+  throw new Error(errors.join("；"));
+}
+
+function getWeatherErrorMessage(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("location can not be found")) return "地点无法识别";
+  if (message.includes("don't have access")) return "账号无该城市权限";
+  return message || "天气数据加载失败";
+}
+
 function Section({ id, label, title, eyebrow, image, children, className = "" }) {
   return (
     <section
@@ -432,6 +590,373 @@ function TimelineSlide() {
       </div>
     </Section>
   );
+}
+
+function WeatherSlide() {
+  const apiKey = getWeatherApiKey();
+  const [weatherByLocation, setWeatherByLocation] = useState({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchState, setSearchState] = useState({
+    status: "idle",
+    results: [],
+    message: ""
+  });
+  const [searchedWeather, setSearchedWeather] = useState({
+    status: "idle",
+    city: null,
+    message: ""
+  });
+
+  const locations = useMemo(() => weatherLocations, []);
+
+  useEffect(() => {
+    if (!apiKey) {
+      setWeatherByLocation({});
+      return;
+    }
+
+    let isActive = true;
+    setWeatherByLocation(
+      Object.fromEntries(locations.map((item) => [item.label, { status: "loading" }]))
+    );
+
+    locations.forEach(async (item) => {
+      try {
+        const weatherBundle = await fetchWeatherBundleWithFallback(item);
+
+        if (!isActive) return;
+        setWeatherByLocation((current) => ({
+          ...current,
+          [item.label]: {
+            status: "success",
+            ...weatherBundle
+          }
+        }));
+      } catch (error) {
+        if (!isActive) return;
+        setWeatherByLocation((current) => ({
+          ...current,
+          [item.label]: {
+            status: "error",
+            error: error instanceof Error ? error.message : "天气数据加载失败。"
+          }
+        }));
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [apiKey, locations]);
+
+  async function handleLocationSearch(event) {
+    event.preventDefault();
+    const query = searchQuery.trim();
+
+    if (!apiKey) {
+      setSearchState({
+        status: "error",
+        results: [],
+        message: "请先填写 VITE_SENIVERSE_API_KEY。"
+      });
+      return;
+    }
+
+    if (!query) {
+      setSearchState({
+        status: "error",
+        results: [],
+        message: "请输入城市 ID、中文、英文、拼音、IP 或经纬度。"
+      });
+      return;
+    }
+
+    setSearchState({ status: "loading", results: [], message: "" });
+    setSearchedWeather({ status: "idle", city: null, message: "" });
+
+    try {
+      const results = await searchSeniverseLocations(query);
+      setSearchState({
+        status: "success",
+        results,
+        message: results.length ? "" : "没有找到匹配城市。"
+      });
+
+      if (results[0]) {
+        handleSearchWeather(results[0]);
+      }
+    } catch (error) {
+      setSearchState({
+        status: "error",
+        results: [],
+        message: getWeatherErrorMessage(error)
+      });
+    }
+  }
+
+  async function handleSearchWeather(city) {
+    setSearchedWeather({
+      status: "loading",
+      city,
+      message: ""
+    });
+
+    try {
+      const weatherBundle = await fetchWeatherBundle(city.id);
+      setSearchedWeather({
+        status: "success",
+        city,
+        message: "",
+        ...weatherBundle
+      });
+    } catch (error) {
+      setSearchedWeather({
+        status: "error",
+        city,
+        message: getWeatherErrorMessage(error)
+      });
+    }
+  }
+
+  return (
+    <Section
+      id="weather"
+      label="实时天气"
+      title="把住宿地天气放到行程中间看"
+      image={imageUrls.lake}
+    >
+      {!apiKey && (
+        <div className="weather-key-panel">
+          <CloudSun size={24} />
+          <div>
+            <h3>请填写天气 API Key</h3>
+            <p>
+              在项目根目录创建 <code>.env</code>，写入
+              <code>VITE_SENIVERSE_API_KEY=你的心知天气密钥</code> 后重启开发服务器。
+              前端直连会在浏览器请求中暴露 key，适合个人演示使用。
+              若地点识别不准，可用 <code>VITE_WEATHER_LOCATION_*</code> 覆盖查询地点。
+            </p>
+          </div>
+        </div>
+      )}
+
+      <LocationSearchPanel
+        apiKey={apiKey}
+        query={searchQuery}
+        searchState={searchState}
+        searchedWeather={searchedWeather}
+        onQueryChange={setSearchQuery}
+        onSearch={handleLocationSearch}
+        onShowWeather={handleSearchWeather}
+      />
+
+      <div className="weather-grid">
+        {locations.map((item) => (
+          <WeatherCard
+            key={item.label}
+            meta={item}
+            state={weatherByLocation[item.label] || { status: apiKey ? "loading" : "idle" }}
+          />
+        ))}
+      </div>
+
+      <div className="fixed-note weather-note">
+        天气为心知天气实时接口返回；逐日预报按账号权限展示可用天数，免费版可能只返回 3 天。
+        新都桥、香格里拉镇、稻城若无法识别或无权限，会自动尝试康定/甘孜等参考地点。
+      </div>
+    </Section>
+  );
+}
+
+function LocationSearchPanel({
+  apiKey,
+  query,
+  searchState,
+  searchedWeather,
+  onQueryChange,
+  onSearch,
+  onShowWeather
+}) {
+  return (
+    <div className="location-search-panel">
+      <form onSubmit={onSearch}>
+        <div>
+          <h3>城市搜索</h3>
+          <p>支持城市 ID、中文、英文、拼音缩写、IP、经纬度和省市名称限定搜索。</p>
+        </div>
+        <div className="location-search-box">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="例如：北京 / beijing / bj / 39.93:116.40"
+            disabled={!apiKey}
+          />
+          <button type="submit" disabled={!apiKey || searchState.status === "loading"}>
+            {searchState.status === "loading" ? "搜索中" : "搜索"}
+          </button>
+        </div>
+      </form>
+
+      {!apiKey && (
+        <p className="location-search-hint">填写 API key 后可用城市搜索来找到更稳定的 location ID。</p>
+      )}
+
+      {searchState.message && (
+        <p className={`location-search-message ${searchState.status}`}>{searchState.message}</p>
+      )}
+
+      {searchState.results.length > 0 && (
+        <div className="location-results">
+          {searchState.results.map((item) => (
+            <LocationResultCard key={item.id} item={item} onShowWeather={onShowWeather} />
+          ))}
+        </div>
+      )}
+
+      {searchedWeather.status !== "idle" && (
+        <div className="searched-weather-wrap">
+          <WeatherCard
+            meta={{
+              label: searchedWeather.city?.name || "搜索城市",
+              stay: "搜索结果天气",
+              role: searchedWeather.city?.path || "实时查询"
+            }}
+            state={
+              searchedWeather.status === "error"
+                ? { status: "error", error: searchedWeather.message }
+                : searchedWeather
+            }
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LocationResultCard({ item, onShowWeather }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(item.id);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <article className="location-result-card">
+      <div>
+        <h4>{item.name}</h4>
+        <p>{item.path}</p>
+        <span>{item.country} · {item.timezone} · UTC{item.timezone_offset}</span>
+      </div>
+      <div className="location-result-actions">
+        <button type="button" onClick={() => onShowWeather(item)}>
+          查看天气
+        </button>
+        <button type="button" onClick={handleCopy} aria-label={`复制 ${item.name} 城市 ID`}>
+          <Copy size={15} />
+          {copied ? "已复制" : item.id}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function WeatherCard({ meta, state }) {
+  const now = state.now || {};
+  const daily = state.daily || [];
+
+  return (
+    <article className={`weather-card ${state.status}`}>
+      <div className="weather-card__head">
+        <div>
+          <span>{meta.stay}</span>
+          <h3>{meta.label}</h3>
+        </div>
+        <strong>{meta.role}</strong>
+      </div>
+
+      {state.status === "idle" && (
+        <p className="weather-state-text">等待填写 API key 后加载天气。</p>
+      )}
+
+      {state.status === "loading" && (
+        <p className="weather-state-text">正在加载实时天气和逐日预报...</p>
+      )}
+
+      {state.status === "error" && (
+        <div className="weather-error">
+          <AlertTriangle size={18} />
+          <p>{state.error}</p>
+        </div>
+      )}
+
+      {state.status === "success" && (
+        <>
+          <div className="weather-now">
+            <CloudSun size={28} />
+            <div>
+              <span>{now.text || "天气未知"}</span>
+              <strong>{now.temperature ? `${now.temperature}℃` : "--"}</strong>
+            </div>
+          </div>
+
+          <div className="weather-facts">
+            <WeatherFact icon={Thermometer} label="体感" value={formatWeatherValue(now.feels_like, "℃")} />
+            <WeatherFact icon={Droplets} label="湿度" value={formatWeatherValue(now.humidity, "%")} />
+            <WeatherFact icon={Wind} label="风力" value={now.wind_scale ? `${now.wind_scale} 级` : "--"} />
+          </div>
+
+          <div className="forecast-list">
+            {daily.map((day) => (
+              <div className="forecast-row" key={day.date}>
+                <span>{formatForecastDate(day.date)}</span>
+                <strong>{day.high || "--"}° / {day.low || "--"}°</strong>
+                <em>{day.text_day || "--"} · 夜间 {day.text_night || "--"}</em>
+              </div>
+            ))}
+          </div>
+
+          <p className="weather-update">
+            {state.location?.name || meta.label}
+            {state.isFallback ? ` 参考 · 查询 ${state.queryLocation}` : ""}
+            {" · "}
+            更新于 {formatUpdateTime(state.lastUpdate)}
+          </p>
+        </>
+      )}
+    </article>
+  );
+}
+
+function WeatherFact({ icon: Icon, label, value }) {
+  return (
+    <div>
+      <Icon size={16} />
+      <span>{label}</span>
+      <strong>{value || "--"}</strong>
+    </div>
+  );
+}
+
+function formatWeatherValue(value, unit) {
+  return value ? `${value}${unit}` : "--";
+}
+
+function formatForecastDate(date) {
+  if (!date) return "--";
+  const [, month, day] = date.split("-");
+  return `${month}/${day}`;
+}
+
+function formatUpdateTime(value) {
+  if (!value) return "--";
+  return value.replace("T", " ").slice(0, 16);
 }
 
 function BackupSlide() {
@@ -651,6 +1176,7 @@ function App() {
         <HeroSlide />
         <DecisionSlide />
         <TimelineSlide />
+        <WeatherSlide />
         <BackupSlide />
         <TransportCompareSlide />
         <BudgetSlide />
